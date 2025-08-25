@@ -243,7 +243,9 @@ class SchemaConverter(majorFhirVersion: String) {
       }
     }
 
-    val path = s"$defaultName.${structField.name}"
+    val path =
+      if (defaultName.isEmpty) structField.name
+      else s"$defaultName.${structField.name}"
 
     structField.dataType match {
       case ArrayType(st: StructType, _) =>
