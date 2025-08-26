@@ -17,6 +17,11 @@ object SchemaUtil {
    * @return
    */
   def convertToStructureDefinitionResource(schemaDefinition: SchemaDefinition, fhirVersion: String): Resource = {
+
+    val deepSchema = isDeepSchema(schemaDefinition)
+    val kindVal        = if (deepSchema) "resource"      else "logical"
+    val derivationVal  = if (deepSchema) "constraint"    else "specialization"
+
     var structureDefinitionResource: Resource =
       ("id" -> schemaDefinition.id) ~
         ("resourceType" -> "StructureDefinition") ~
@@ -29,15 +34,16 @@ object SchemaUtil {
     structureDefinitionResource ~
       ("status" -> "draft") ~
       ("fhirVersion" -> fhirVersion) ~
-      ("kind" -> "resource") ~
+      ("kind" -> kindVal) ~
       ("abstract" -> false) ~
       ("type" -> schemaDefinition.`type`) ~
       ("baseDefinition" -> "http://hl7.org/fhir/StructureDefinition/Element") ~
-      ("derivation" -> "constraint") ~
+      ("derivation"   -> derivationVal) ~
       ("differential" -> ("element" -> generateElementArray(
         schemaDefinition.id,
         schemaDefinition.`type`,
-        schemaDefinition.fieldDefinitions.getOrElse(Seq.empty)
+        schemaDefinition.fieldDefinitions.getOrElse(Seq.empty),
+        deepSchema
       )))
   }
 
@@ -49,15 +55,15 @@ object SchemaUtil {
    * @return
    * @throws IllegalArgumentException if a field definition does not have at least one data type
    */
-  private def generateElementArray(id: String, `type`: String, fieldDefinitions: Seq[SimpleStructureDefinition]): JArray = {
+  private def generateElementArray(id: String, `type`: String, fieldDefinitions: Seq[SimpleStructureDefinition], deepSchema: Boolean): JArray = {
 
     // Normalize path so that it starts with the schema type
     def normalizePath(p: String): String = {
       val raw = Option(p).map(_.trim).getOrElse("")
       val clean =
         if (id != null && id.nonEmpty && (raw == id || raw.startsWith(id + ".")))
-        raw.stripPrefix(id + ".").stripPrefix(id)
-      else raw
+          raw.stripPrefix(id + ".").stripPrefix(id)
+        else raw
       val t = `type`
       if (clean.isEmpty) t
       else if (clean == t || clean.startsWith(t + ".")) clean
@@ -79,7 +85,7 @@ object SchemaUtil {
 
     val flatFds = flatten(fieldDefinitions)
 
-    // Validate types after flatten (defensive — we rely on types to build a correct SD)
+    // Validate types after flatten
     val integrityCheck = flatFds.forall(fd => fd.dataTypes.isDefined && fd.dataTypes.get.nonEmpty)
     if (!integrityCheck) {
       throw new IllegalArgumentException(
@@ -87,10 +93,17 @@ object SchemaUtil {
       )
     }
 
-    val rootElement =
-      ("id" -> `type`) ~
-        ("path" -> `type`)
-
+    val rootElement: org.json4s.JObject =
+      if (deepSchema) {
+        ("id" -> `type`) ~
+          ("path" -> `type`)
+      } else {
+        ("id" -> `type`) ~
+          ("path" -> `type`) ~
+          ("min" -> 0) ~
+          ("max" -> "*") ~
+          ("type" -> JArray(List(("code" -> "Element"))))
+      }
     // Children (flat list)
     val elements = flatFds.map { fd =>
       val max: String = fd.maxCardinality match {
