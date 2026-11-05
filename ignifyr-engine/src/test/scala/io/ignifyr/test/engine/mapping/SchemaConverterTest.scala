@@ -58,8 +58,28 @@ class SchemaConverterTest extends AnyFlatSpec with Matchers {
   }
 
   it should "report no data type for a Spark type it does not know" in {
-    fhirTypeOf(StructType(Seq(StructField("nested", StringType)))) shouldBe None
     fhirTypeOf(MapType(StringType, StringType)) shouldBe None
+  }
+
+  it should "map a nested struct onto a BackboneElement with its fields as child elements" in {
+    val struct = StructType(Seq(StructField("code", StringType), StructField("value", IntegerType)))
+
+    val single = schemaConverter.fieldsToSchema(StructField("col", struct), "Schema")
+    single.dataTypes.flatMap(_.headOption.map(_.dataType)) shouldBe Some("BackboneElement")
+    single.isPrimitive shouldBe false
+    single.isArray shouldBe false
+    single.maxCardinality shouldBe Some(1)
+    single.elements.map(_.map(_.path)) shouldBe Some(Seq("Schema.col.code", "Schema.col.value"))
+
+    val array = schemaConverter.fieldsToSchema(StructField("col", ArrayType(struct)), "Schema")
+    array.dataTypes.flatMap(_.headOption.map(_.dataType)) shouldBe Some("BackboneElement")
+    array.isArray shouldBe true
+    array.maxCardinality shouldBe None // None represents "*"
+    array.elements.map(_.size) shouldBe Some(2)
+  }
+
+  it should "not prefix the path when no schema name is given" in {
+    schemaConverter.fieldsToSchema(StructField("birthDate", DateType), "").path shouldBe "birthDate"
   }
 
   it should "mark an array element unbounded and a scalar element single" in {
