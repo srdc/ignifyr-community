@@ -25,7 +25,7 @@ import org.apache.spark.sql.streaming.StreamingQuery
 import org.apache.spark.sql.{DataFrame, Dataset, SparkSession}
 
 import java.time.LocalDateTime
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{blocking, ExecutionContext, Future}
 
 /**
  * Main entrypoint for FHIR mapping jobs
@@ -396,14 +396,19 @@ class FhirMappingJobManager(
     logger.debug(
       s"Reading source data for mapping ${mappingTask.name}$batchInfo within mapping job ${mappingJobExecution.jobId} ..."
     )
-    val (fhirMapping, mds, df) =
+    // Reading (the schema inference of a file is a Spark job of its own) and counting the source take as long as the
+    // source is big, and they run on the thread that executes this method. They are marked as blocking so that a
+    // batching executor (e.g. an Akka dispatcher) hands the callbacks queued behind this one to other threads instead
+    // of keeping them waiting; the reply to the request that launched the execution is such a callback.
+    val (fhirMapping, mds, df) = blocking {
       readJoinSourceData(mappingTask, sourceSettings, timeRange, jobId = Some(mappingJobExecution.jobId))
+    }
     // Cache the DataFrame to avoid re-reading the source data multiple times during processing.
     // This is particularly useful when using chunking (e.g., via IgnifyrConfig.engineConfig.maxChunkSizeForMappingJobs),
     // as each chunk triggers a new read of the source data. Caching ensures that the data is read only once
     // and reused across all chunks, improving performance.
     df.cache()
-    val sizeOfDf: Long = df.count()
+    val sizeOfDf: Long = blocking(df.count())
     val batchParamsInfo = batchParams.map(p => s" with params: $p").getOrElse("")
     logger.debug(
       s"$sizeOfDf records read for mapping ${mappingTask.name}$batchInfo$batchParamsInfo within mapping job ${mappingJobExecution.jobId} ..."
@@ -425,7 +430,7 @@ class FhirMappingJobManager(
           Some(mappingJobExecution.projectId)
         )
           .map(dataset =>
-            SinkHandler.writeMappingResult(spark, mappingJobExecution, mappingTask.name, dataset, sinkWriter)
+            blocking(SinkHandler.writeMappingResult(spark, mappingJobExecution, mappingTask.name, dataset, sinkWriter))
           ) // Write the created FHIR Resources to the FhirWriter
       case Some(chunkSize) if sizeOfDf < chunkSize =>
         logger.debug(s"Executing the mapping ${mappingTask.name}$batchInfo within job ${mappingJobExecution.jobId} ...")
@@ -441,7 +446,7 @@ class FhirMappingJobManager(
           Some(mappingJobExecution.projectId)
         )
           .map(dataset =>
-            SinkHandler.writeMappingResult(spark, mappingJobExecution, mappingTask.name, dataset, sinkWriter)
+            blocking(SinkHandler.writeMappingResult(spark, mappingJobExecution, mappingTask.name, dataset, sinkWriter))
           ) // Write the created FHIR Resources to the FhirWriter
       // Otherwise divide the data into chunks
       case Some(chunkSize) =>
@@ -467,7 +472,9 @@ class FhirMappingJobManager(
                 projectId = Some(mappingJobExecution.projectId)
               )
                 .map(dataset =>
-                  SinkHandler.writeMappingResult(spark, mappingJobExecution, mappingTask.name, dataset, sinkWriter)
+                  blocking(
+                    SinkHandler.writeMappingResult(spark, mappingJobExecution, mappingTask.name, dataset, sinkWriter)
+                  )
                 )
                 .map(_ =>
                   logger.debug(
