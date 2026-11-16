@@ -905,6 +905,19 @@ To give any spark option, you can use the `options` field in the source binding 
 }
 ```
 
+##### Column types of CSV/TSV sources
+
+A CSV/TSV source is read with the schema of the mapping. When the source binding has a `preprocessSql`, the schema
+describes the result of the SQL rather than the file, so the column types of the file are inferred by Spark instead.
+Two things keep the inference from changing your data:
+
+- A column that the schema declares as a string is never read as a number, so codes such as `00169750111` or `038.90`
+  keep their zeros. The other inferred types (boolean, date, timestamp) and the columns the schema does not declare are
+  left to the inference.
+- The `inferSchema` option overrides the default: `"inferSchema": "false"` reads the file with the schema of the
+  mapping even though there is a `preprocessSql` (the right choice when the SQL only filters rows), and
+  `"inferSchema": "true"` infers the type of every column.
+
 #### Multiple Data Sources
 
 In a mapping job, you can read data from more than one data source. Let's consider a scenario where you have different sources
