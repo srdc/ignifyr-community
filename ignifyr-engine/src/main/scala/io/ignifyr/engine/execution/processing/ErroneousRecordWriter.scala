@@ -2,12 +2,15 @@ package io.ignifyr.engine.execution.processing
 
 import io.ignifyr.engine.model.{FhirMappingErrorCodes, FhirMappingJobExecution, FhirMappingResult}
 import io.ignifyr.engine.util.FileUtils.FileExtensions
-import org.apache.spark.sql.functions.{col, from_json, schema_of_json}
-import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
+import org.apache.spark.sql.functions.{col, to_json}
+import org.apache.spark.sql.types.{ArrayType, MapType, StructType}
+import org.apache.spark.sql.{DataFrame, Dataset, SaveMode, SparkSession}
+import org.json4s.jackson.JsonMethods
+import org.json4s.{JArray, JObject}
 
 import java.io.File
 import java.util
-import io.onfhir.util.JsonFormatter._
+import scala.util.Try
 
 /**
  * This class persists [[FhirMappingResult]]s that produced some error during the mapping process.
@@ -69,6 +72,11 @@ object ErroneousRecordWriter {
    *
    * error-folder-path\<error-type>\job-<jobId>\execution-<executionId>\<mappingTaskName>\<sourceName>\<random-generated-name-by-spark>.csv
    *
+   * The rows of a joined source do not have one shape: a result carries no entry for a joined source that matched
+   * nothing, an object when it matched one row and an array when it matched several, and a null column is left out
+   * of the serialized row altogether. So the columns of each source are taken from all of its rows rather than from
+   * one sampled result, which is what failed with FIELD_NOT_FOUND when the sample happened to lack a joined source.
+   *
    * @param mappingJobExecution The job execution object, used to get the output directory of data sources with errors.
    * @param dataset             The filtered dataset of data sources with errors to be written to the configured folder.
    * @param mappingTaskName     The name of the mapping task, used to create a directory for each mapping within the job execution.
@@ -81,37 +89,65 @@ object ErroneousRecordWriter {
       errorType: String
   ): Unit = {
     val outputPath = mappingJobExecution.getErrorOutputDirectory(mappingTaskName, errorType)
-    val schema = schema_of_json(dataset.rdd.takeSample(withReplacement = false, num = 1).head.source)
+    val spark = dataset.sparkSession
+    import spark.implicits._
 
-    // extract each source name (e.g., "mainSource", "secondarySource") from the dataset's "source" field
-    val jsonColumns: Array[String] = dataset
-      .select("source")
-      .rdd
-      .flatMap(row =>
-        row.getAs[String]("source").parseJson.values.keys
-      ) // parse JSON and get all keys from the "source" map
-      .distinct() // remove duplicate source names
-      .collect()
-
-    // for each source, create and write a separate CSV file
-    jsonColumns.foreach { sourceKey =>
-      // extract the source data for the given sourceKey and flatten the selected source field
-      val sourceDataset = dataset
-        .withColumn("jsonData", from_json(col("source"), schema))
-        .selectExpr(s"jsonData.$sourceKey.*")
-
-      // write the extracted source data as a separate CSV file into the directory for that sourceKey
-      sourceDataset
-        .coalesce(1)
-        .write
-        .mode(SaveMode.Append)
-        .option("header", "true")
-        .csv(s"$outputPath/$sourceKey")
-    }
+    // one (source name, serialized row) pair per source row of every result
+    val sourceRows: Dataset[(String, String)] = dataset.flatMap(result => extractSourceRows(result.source))
+    sourceRows.cache()
+    try {
+      // for each source, create and write a separate CSV file
+      sourceRows.map(_._1).distinct().collect().foreach { sourceKey =>
+        val rowsOfSource = sourceRows.filter(_._1 == sourceKey).map(_._2)
+        // The columns are the union of the columns of all rows. The values are kept as they were serialized
+        // (no type inference), so the archive shows the input as the mapping saw it.
+        val sourceDataset = stringifyNestedColumns(spark.read.option("primitivesAsString", "true").json(rowsOfSource))
+        // rows without any column (e.g. only null values) leave nothing to write
+        if (sourceDataset.columns.nonEmpty)
+          // write the extracted source data as a separate CSV file into the directory for that sourceKey
+          sourceDataset
+            .coalesce(1)
+            .write
+            .mode(SaveMode.Append)
+            .option("header", "true")
+            .csv(s"$outputPath/$sourceKey")
+      }
+    } finally sourceRows.unpersist()
 
     // remove all files except the CSV file (to remove .crc files)
     deleteNonCsvFiles(new File(outputPath))
   }
+
+  /**
+   * Splits the serialized source of a mapping result (see [[FhirMappingResult.source]]) into its source rows.
+   *
+   * @param source JSON object whose keys are the source names ("mainSource" and the aliases of the joined sources)
+   *               and whose values are a row (JSON object) or, for a joined source matching several rows, an array of rows
+   * @return The name of the source and the serialized row, for every row; nothing if the source is not such an object
+   */
+  private[processing] def extractSourceRows(source: String): Seq[(String, String)] =
+    Try(JsonMethods.parse(source)).toOption match {
+      case Some(JObject(sources)) =>
+        sources.flatMap {
+          case (sourceName, row: JObject) => Seq(sourceName -> JsonMethods.compact(JsonMethods.render(row)))
+          case (sourceName, JArray(rows)) =>
+            rows.collect { case row: JObject => sourceName -> JsonMethods.compact(JsonMethods.render(row)) }
+          case _ => Seq.empty
+        }
+      case _ => Seq.empty
+    }
+
+  /**
+   * CSV has no representation for nested values, so the columns holding an object or an array are written as JSON text.
+   */
+  private def stringifyNestedColumns(df: DataFrame): DataFrame =
+    df.schema.fields.foldLeft(df) { (current, field) =>
+      field.dataType match {
+        case _: StructType | _: ArrayType | _: MapType =>
+          current.withColumn(field.name, to_json(col(s"`${field.name}`")))
+        case _ => current
+      }
+    }
 
   /**
    * Recursively deletes non-CSV files (like .crc files) from the directory.
