@@ -51,7 +51,8 @@ constant or the job passes a raw string.
 
 ## Tests
 Tier-split (surefire disabled). **Short** (`wildcardSuites=io.ignifyr.connector.file`, no Docker):
-`FileDataSourceReaderTest`, `FileDataSourceReaderOptionsTest`, `FileConnectorExtensionSpec` (discovery,
+`FileDataSourceReaderTest`, `FileDataSourceReaderOptionsTest`, `CsvDeclaredStringColumnsTest`,
+`BatchExecutionOnBatchingExecutorTest`, `FileConnectorExtensionSpec` (discovery,
 `extraCapabilities`, the missing-format install-hint UX, **and** the duplicate-content-type guard — the
 latter asserted on `FileFormatRegistry.indexUnique`, which is `private[file]` for exactly that reason,
 since ServiceLoader input can't be staged on the test classpath). **Long**
@@ -59,6 +60,14 @@ since ServiceLoader input can't be staged on the test classpath). **Long**
 `FhirMappingJobManagerTest` — writes through the FHIR sink, so `ignifyr-sink-fhir` is a test-scope dep.
 Run it with `mvn -B verify -pl ignifyr-connector-file -DskipITs=false`. The shared harness + fixtures come
 from `ignifyr-testkit` (test scope).
+
+`CsvDeclaredStringColumnsTest` pins the csv handler's one piece of type logic: a source with a `preprocessSql` is read
+with Spark's inference, but a column the mapping's schema declares as a string is never inferred as a number (codes
+would lose their zeros); an explicit `inferSchema` option still wins either way.
+`BatchExecutionOnBatchingExecutorTest` runs a batch execution on an Akka dispatcher and asserts that callbacks queued
+behind the launch are not held until the source is read. It lives here, not in the engine, because the engine ships no
+source to read; it guards the `blocking` markers in `FhirMappingJobManager`, without which the server answers a run
+request only after the source has been read and counted.
 
 `FileDataSourceReaderOptionsTest` pins the two things the reader does *around* the format handler and
 nobody else covers: the `distinct` read option, and path resolution — an `hdfs://` data folder is handed
