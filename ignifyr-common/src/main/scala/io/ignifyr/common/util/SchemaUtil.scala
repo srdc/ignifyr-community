@@ -62,33 +62,43 @@ object SchemaUtil {
       deepSchema: Boolean
   ): JArray = {
 
-    // Normalize path so that it starts with the schema type. Only one leading root segment (the schema id or the
-    // type) is removed: a column whose name merely starts with the id (e.g. "medication_name" in the schema
-    // "medication") or equals the type keeps its name.
-    def normalizePath(p: String): String = {
-      val raw = Option(p).map(_.trim).getOrElse("")
-      val t = `type`
-      val roots = Seq(Option(id).filter(_.nonEmpty), Option(t).filter(_.nonEmpty)).flatten
-      val relative =
-        if (roots.contains(raw)) ""
-        else roots.find(r => raw.startsWith(r + ".")).map(r => raw.substring(r.length + 1)).getOrElse(raw)
+    val t = `type`
+    val roots = Seq(Option(id).filter(_.nonEmpty), Option(t).filter(_.nonEmpty)).flatten
+
+    // A field path either starts with a root segment, the schema id or the type ("medication.medication_name",
+    // "Medication.x.y"), or is relative to the schema ("medication_name", "x.y") as the schema inference and the
+    // schema editor create them. A single path cannot tell the two apart ("medication.dose" may be the column "dose"
+    // or the child "dose" of the column "medication"), but a top-level path can: a relative one has no '.'. So the
+    // root is decided on the top-level field and applies to its whole subtree.
+    def rootOf(topLevelPath: String): Option[String] =
+      if (topLevelPath.contains('.')) roots.find(r => topLevelPath.startsWith(r + ".")) else None
+
+    // Make the path start with the schema type, removing only the given root segment, so a column whose name starts
+    // with the id (e.g. "medication_name" in the schema "medication") or equals the id or the type keeps its name.
+    def normalizePath(path: String, root: Option[String]): String = {
+      val relative = root.filter(r => path.startsWith(r + ".")).map(r => path.substring(r.length + 1)).getOrElse(path)
       if (relative.isEmpty) t else t + "." + relative
     }
 
     // Flatten nested elements into a single list suitable for StructureDefinition.differential.element
-    def flatten(defs: Seq[SimpleStructureDefinition]): Seq[SimpleStructureDefinition] = {
+    def flatten(
+        defs: Seq[SimpleStructureDefinition],
+        parentRoot: Option[Option[String]]
+    ): Seq[SimpleStructureDefinition] = {
       defs.flatMap { fd =>
-        val np = normalizePath(fd.path)
+        val raw = Option(fd.path).map(_.trim).getOrElse("")
+        val root = parentRoot.getOrElse(rootOf(raw)) // None for the top level: decide there
+        val np = normalizePath(raw, root)
         val self = fd.copy(
           id = np,
           path = np,
           elements = None
         )
-        self +: flatten(fd.elements.getOrElse(Seq.empty))
+        self +: flatten(fd.elements.getOrElse(Seq.empty), Some(root))
       }
     }
 
-    val flatFds = flatten(fieldDefinitions)
+    val flatFds = flatten(fieldDefinitions, None)
 
     // Validate types after flatten
     val integrityCheck = flatFds.forall(fd => fd.dataTypes.isDefined && fd.dataTypes.get.nonEmpty)

@@ -84,4 +84,45 @@ class SchemaUtilTest extends AnyFlatSpec with Matchers {
     val nlp = schema("nlp", "Nlp", Seq(field("nlp.nlp_output", Some(Seq(field("nlp.nlp_output.nlp_text"))))))
     elementPaths(nlp) shouldBe Seq("Nlp", "Nlp.nlp_output", "Nlp.nlp_output.nlp_text")
   }
+
+  it should "keep any column name that starts with the schema id or type, whatever follows it" in {
+    val names = Seq("medicationName", "medication-name", "medication2", "medication$x", "Medication_x", "MEDICATION_x")
+    val rooted = schema("medication", "Medication", names.map(n => field(s"medication.$n")))
+    val relative = schema("medication", "Medication", names.map(field(_)))
+    elementPaths(rooted) shouldBe "Medication" +: names.map(n => s"Medication.$n")
+    elementPaths(relative) shouldBe "Medication" +: names.map(n => s"Medication.$n")
+  }
+
+  it should "keep a relative column named like the schema id or type, as the schema inference creates it" in {
+    val nyha = schema("nyha", "Nyha", Seq(field("nyha"), field("Nyha"), field("score")))
+    elementPaths(nyha) shouldBe Seq("Nyha", "Nyha.nyha", "Nyha.Nyha", "Nyha.score")
+  }
+
+  it should "keep a relative nested column named like the schema id, as the schema editor creates it" in {
+    val medication = schema(
+      "medication",
+      "Medication",
+      Seq(
+        field("medication", Some(Seq(field("medication.dose")))),
+        field("Medication", Some(Seq(field("Medication.x"))))
+      )
+    )
+    elementPaths(medication) shouldBe Seq(
+      "Medication",
+      "Medication.medication",
+      "Medication.medication.dose",
+      "Medication.Medication",
+      "Medication.Medication.x"
+    )
+  }
+
+  it should "remove the root only once from a nested column named like the schema id" in {
+    val medication =
+      schema(
+        "medication",
+        "Medication",
+        Seq(field("medication.medication", Some(Seq(field("medication.medication.dose")))))
+      )
+    elementPaths(medication) shouldBe Seq("Medication", "Medication.medication", "Medication.medication.dose")
+  }
 }
