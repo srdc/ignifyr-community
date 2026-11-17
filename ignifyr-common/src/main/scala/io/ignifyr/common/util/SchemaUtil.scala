@@ -19,8 +19,8 @@ object SchemaUtil {
   def convertToStructureDefinitionResource(schemaDefinition: SchemaDefinition, fhirVersion: String): Resource = {
 
     val deepSchema = isDeepSchema(schemaDefinition)
-    val kindVal        = if (deepSchema) "resource"      else "logical"
-    val derivationVal  = if (deepSchema) "constraint"    else "specialization"
+    val kindVal = if (deepSchema) "resource" else "logical"
+    val derivationVal = if (deepSchema) "constraint" else "specialization"
 
     var structureDefinitionResource: Resource =
       ("id" -> schemaDefinition.id) ~
@@ -38,7 +38,7 @@ object SchemaUtil {
       ("abstract" -> false) ~
       ("type" -> schemaDefinition.`type`) ~
       ("baseDefinition" -> "http://hl7.org/fhir/StructureDefinition/Element") ~
-      ("derivation"   -> derivationVal) ~
+      ("derivation" -> derivationVal) ~
       ("differential" -> ("element" -> generateElementArray(
         schemaDefinition.id,
         schemaDefinition.`type`,
@@ -55,35 +55,50 @@ object SchemaUtil {
    * @return
    * @throws IllegalArgumentException if a field definition does not have at least one data type
    */
-  private def generateElementArray(id: String, `type`: String, fieldDefinitions: Seq[SimpleStructureDefinition], deepSchema: Boolean): JArray = {
+  private def generateElementArray(
+      id: String,
+      `type`: String,
+      fieldDefinitions: Seq[SimpleStructureDefinition],
+      deepSchema: Boolean
+  ): JArray = {
 
-    // Normalize path so that it starts with the schema type
-    def normalizePath(p: String): String = {
-      val raw = Option(p).map(_.trim).getOrElse("")
-      val clean =
-        if (id != null && id.nonEmpty && (raw == id || raw.startsWith(id + ".")))
-          raw.stripPrefix(id + ".").stripPrefix(id)
-        else raw
-      val t = `type`
-      if (clean.isEmpty) t
-      else if (clean == t || clean.startsWith(t + ".")) clean
-      else t + "." + clean
+    val t = `type`
+    val roots = Seq(Option(id).filter(_.nonEmpty), Option(t).filter(_.nonEmpty)).flatten
+
+    // A field path either starts with a root segment, the schema id or the type ("medication.medication_name",
+    // "Medication.x.y"), or is relative to the schema ("medication_name", "x.y") as the schema inference and the
+    // schema editor create them. A single path cannot tell the two apart ("medication.dose" may be the column "dose"
+    // or the child "dose" of the column "medication"), but a top-level path can: a relative one has no '.'. So the
+    // root is decided on the top-level field and applies to its whole subtree.
+    def rootOf(topLevelPath: String): Option[String] =
+      if (topLevelPath.contains('.')) roots.find(r => topLevelPath.startsWith(r + ".")) else None
+
+    // Make the path start with the schema type, removing only the given root segment, so a column whose name starts
+    // with the id (e.g. "medication_name" in the schema "medication") or equals the id or the type keeps its name.
+    def normalizePath(path: String, root: Option[String]): String = {
+      val relative = root.filter(r => path.startsWith(r + ".")).map(r => path.substring(r.length + 1)).getOrElse(path)
+      if (relative.isEmpty) t else t + "." + relative
     }
 
     // Flatten nested elements into a single list suitable for StructureDefinition.differential.element
-    def flatten(defs: Seq[SimpleStructureDefinition]): Seq[SimpleStructureDefinition] = {
+    def flatten(
+        defs: Seq[SimpleStructureDefinition],
+        parentRoot: Option[Option[String]]
+    ): Seq[SimpleStructureDefinition] = {
       defs.flatMap { fd =>
-        val np = normalizePath(fd.path)
+        val raw = Option(fd.path).map(_.trim).getOrElse("")
+        val root = parentRoot.getOrElse(rootOf(raw)) // None for the top level: decide there
+        val np = normalizePath(raw, root)
         val self = fd.copy(
-          id       = np,
-          path     = np,
+          id = np,
+          path = np,
           elements = None
         )
-        self +: flatten(fd.elements.getOrElse(Seq.empty))
+        self +: flatten(fd.elements.getOrElse(Seq.empty), Some(root))
       }
     }
 
-    val flatFds = flatten(fieldDefinitions)
+    val flatFds = flatten(fieldDefinitions, None)
 
     // Validate types after flatten
     val integrityCheck = flatFds.forall(fd => fd.dataTypes.isDefined && fd.dataTypes.get.nonEmpty)
@@ -108,7 +123,7 @@ object SchemaUtil {
     val elements = flatFds.map { fd =>
       val max: String = fd.maxCardinality match {
         case Some(v) => v.toString
-        case None    => if (fd.isArray) "*" else "1"
+        case None => if (fd.isArray) "*" else "1"
       }
       // create element json
       var elementJson =
