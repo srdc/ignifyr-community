@@ -19,8 +19,8 @@ object SchemaUtil {
   def convertToStructureDefinitionResource(schemaDefinition: SchemaDefinition, fhirVersion: String): Resource = {
 
     val deepSchema = isDeepSchema(schemaDefinition)
-    val kindVal        = if (deepSchema) "resource"      else "logical"
-    val derivationVal  = if (deepSchema) "constraint"    else "specialization"
+    val kindVal = if (deepSchema) "resource" else "logical"
+    val derivationVal = if (deepSchema) "constraint" else "specialization"
 
     var structureDefinitionResource: Resource =
       ("id" -> schemaDefinition.id) ~
@@ -38,7 +38,7 @@ object SchemaUtil {
       ("abstract" -> false) ~
       ("type" -> schemaDefinition.`type`) ~
       ("baseDefinition" -> "http://hl7.org/fhir/StructureDefinition/Element") ~
-      ("derivation"   -> derivationVal) ~
+      ("derivation" -> derivationVal) ~
       ("differential" -> ("element" -> generateElementArray(
         schemaDefinition.id,
         schemaDefinition.`type`,
@@ -55,19 +55,24 @@ object SchemaUtil {
    * @return
    * @throws IllegalArgumentException if a field definition does not have at least one data type
    */
-  private def generateElementArray(id: String, `type`: String, fieldDefinitions: Seq[SimpleStructureDefinition], deepSchema: Boolean): JArray = {
+  private def generateElementArray(
+      id: String,
+      `type`: String,
+      fieldDefinitions: Seq[SimpleStructureDefinition],
+      deepSchema: Boolean
+  ): JArray = {
 
-    // Normalize path so that it starts with the schema type
+    // Normalize path so that it starts with the schema type. Only one leading root segment (the schema id or the
+    // type) is removed: a column whose name merely starts with the id (e.g. "medication_name" in the schema
+    // "medication") or equals the type keeps its name.
     def normalizePath(p: String): String = {
       val raw = Option(p).map(_.trim).getOrElse("")
-      val clean =
-        if (id != null && id.nonEmpty && (raw == id || raw.startsWith(id + ".")))
-          raw.stripPrefix(id + ".").stripPrefix(id)
-        else raw
       val t = `type`
-      if (clean.isEmpty) t
-      else if (clean == t || clean.startsWith(t + ".")) clean
-      else t + "." + clean
+      val roots = Seq(Option(id).filter(_.nonEmpty), Option(t).filter(_.nonEmpty)).flatten
+      val relative =
+        if (roots.contains(raw)) ""
+        else roots.find(r => raw.startsWith(r + ".")).map(r => raw.substring(r.length + 1)).getOrElse(raw)
+      if (relative.isEmpty) t else t + "." + relative
     }
 
     // Flatten nested elements into a single list suitable for StructureDefinition.differential.element
@@ -75,8 +80,8 @@ object SchemaUtil {
       defs.flatMap { fd =>
         val np = normalizePath(fd.path)
         val self = fd.copy(
-          id       = np,
-          path     = np,
+          id = np,
+          path = np,
           elements = None
         )
         self +: flatten(fd.elements.getOrElse(Seq.empty))
@@ -108,7 +113,7 @@ object SchemaUtil {
     val elements = flatFds.map { fd =>
       val max: String = fd.maxCardinality match {
         case Some(v) => v.toString
-        case None    => if (fd.isArray) "*" else "1"
+        case None => if (fd.isArray) "*" else "1"
       }
       // create element json
       var elementJson =
