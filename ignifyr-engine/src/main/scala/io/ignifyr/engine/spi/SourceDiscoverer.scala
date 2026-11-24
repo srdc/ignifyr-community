@@ -127,5 +127,11 @@ case class DiscoveredForeignKey(
  */
 case class DiscoveryProblem(code: String, message: String)
 
+object DiscoveryProblem {
+  val Empty = "empty"
+  val Malformed = "malformed"
+  val Unsupported = "unsupported"
+}
+
 /** The source could not be reached or did not answer. The message quotes no credentials. */
 class SourceDiscoveryException(message: String, cause: Throwable = null) extends RuntimeException(message, cause)

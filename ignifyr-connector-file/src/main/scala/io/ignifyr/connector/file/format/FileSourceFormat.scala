@@ -1,8 +1,11 @@
 package io.ignifyr.connector.file.format
 
 import io.ignifyr.engine.model.{FileSystemSource, FileSystemSourceSettings}
+import io.ignifyr.engine.spi.{DiscoveredColumn, DiscoveryProblem}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SparkSession}
+
+import java.nio.file.Path
 
 /**
  * A file *source* format handler contributed to the file connector: given a resolved path it turns
@@ -25,7 +28,34 @@ trait FileSourceFormat {
 
   /** Reads the raw frame for the given context (no filename column, no `distinct` applied). */
   def read(ctx: FileSourceReadContext): DataFrame
+
+  /**
+   * Describes the columns of one file for source discovery, reading as little of it as the format allows: its own
+   * schema (`typeOrigin` declared, e.g. Parquet), or its header and first record (`typeOrigin` sampled, e.g. CSV).
+   * Whatever is read is used for the column names and types only and never returned.
+   *
+   * The default describes nothing: a format that does not override it has its files reported as unsupported.
+   *
+   * @return the columns in file order, or why the file cannot be described ([[DiscoveryProblem]]); the problem's
+   *         message quotes no file content
+   */
+  def describe(ctx: FileDescribeContext): Either[DiscoveryProblem, Seq[DiscoveredColumn]] =
+    Left(
+      DiscoveryProblem(
+        DiscoveryProblem.Unsupported,
+        s"The ${ctx.mappingSourceBinding.contentType} format cannot describe its files"
+      )
+    )
 }
+
+/**
+ * Everything a [[FileSourceFormat]] needs to describe a file for source discovery.
+ *
+ * @param path                 the resolved file (or directory, e.g. a Parquet folder written by Spark)
+ * @param mappingSourceBinding the binding that reads the file (content type, options such as `sep` or `header`)
+ * @param spark                the Spark session, for a format that needs it; taken only when called
+ */
+case class FileDescribeContext(path: Path, mappingSourceBinding: FileSystemSource, spark: () => SparkSession)
 
 /**
  * Everything a [[FileSourceFormat]] needs, prepared by the reader.

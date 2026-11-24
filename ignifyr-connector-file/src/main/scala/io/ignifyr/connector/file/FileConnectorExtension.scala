@@ -9,11 +9,12 @@ import io.ignifyr.engine.model.{
   MappingJobSourceSettings,
   MappingSourceBinding
 }
-import io.ignifyr.engine.spi.{IgnifyrExtension, SourceConnector}
+import io.ignifyr.engine.spi.{IgnifyrExtension, SourceConnector, SourceDiscoverer}
 import org.apache.spark.sql.SparkSession
 
 /**
- * [[IgnifyrExtension]] for the community file connector: contributes the file-system source reader.
+ * [[IgnifyrExtension]] for the community file connector: contributes the file-system source reader, and a
+ * [[FileSourceDiscoverer]] listing the files of a data folder with their columns.
  * The set of file *formats* it reads (csv/tsv/parquet/...) is a separate, connector-local sub-SPI
  * discovered via the [[io.ignifyr.connector.file.format.FileFormatRegistry]], so enterprise format
  * modules can add JSON-source support without touching the engine. The file-system *sink* lives in
@@ -42,6 +43,8 @@ class FileConnectorExtension extends IgnifyrExtension {
       override def createReader(spark: SparkSession): BaseDataSourceReader[_, _] = new FileDataSourceReader(spark)
     }
   )
+
+  override def sourceDiscoverers: Seq[SourceDiscoverer] = Seq(new FileSourceDiscoverer())
 
   /**
    * Surface the connector-local file-format sub-registry (its own ServiceLoader) to `list-plugins`,

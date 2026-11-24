@@ -28,8 +28,10 @@ the two whose handlers are enterprise-only — and it names this module's Maven 
 constant or the job passes a raw string.
 
 ## Layout (`src/main/scala/io/ignifyr/connector/file/`)
-- top level — `FileConnectorExtension` (the `IgnifyrExtension` impl), `FileDataSourceReader` (source).
-- `format/` — the sub-SPI + plumbing: `FileSourceFormat` (+ `FileSourceReadContext`) trait;
+- top level — `FileConnectorExtension` (the `IgnifyrExtension` impl), `FileDataSourceReader` (source),
+  `FileSourceDiscoverer` (the engine's `SourceDiscoverer` for file sources, see below).
+- `format/` — the sub-SPI + plumbing: `FileSourceFormat` (+ `FileSourceReadContext`, `FileDescribeContext`) trait;
+  `FileDescription` (sampled/Spark type mapping and the CSV record reader for `describe`);
   `FileFormatRegistry` (the connector-local ServiceLoader registry); `FileFormatHints` +
   `MissingFileFormatException` (install-hint UX).
 - `format/source/` — community source handlers: `CsvSourceFormat` (csv **and** tsv, plus zip via
@@ -49,10 +51,18 @@ constant or the job passes a raw string.
   `extraCapabilities` surfaces the installed source-format keys to the `list-plugins` command (the
   engine can't introspect the sub-registry itself).
 
+## Source discovery
+`FileSourceDiscoverer` lists the data folder's `csv`/`tsv`/`json`/`ndjson`/`parquet` files (a folder named with
+such an extension, as Spark writes Parquet, is one table; `.`/`_` entries are skipped; local folders only, `hdfs://`
+is refused) and asks each file's format handler to `describe` it. `describe` is a defaulted method of the sub-SPI:
+CSV/TSV read the header and the first record only (types sampled from that record, never returned), Parquet its
+footer schema through Spark; a format that does not override it (or a content type no installed module reads) leaves
+the file listed as `unreadable` (`unsupported`), so the enterprise `ignifyr-format-json` adds JSON by overriding it.
+
 ## Tests
 Tier-split (surefire disabled). **Short** (`wildcardSuites=io.ignifyr.connector.file`, no Docker):
 `FileDataSourceReaderTest`, `FileDataSourceReaderOptionsTest`, `CsvDeclaredStringColumnsTest`,
-`BatchExecutionOnBatchingExecutorTest`, `FileConnectorExtensionSpec` (discovery,
+`BatchExecutionOnBatchingExecutorTest`, `FileSourceDiscovererTest`, `FileConnectorExtensionSpec` (discovery,
 `extraCapabilities`, the missing-format install-hint UX, **and** the duplicate-content-type guard — the
 latter asserted on `FileFormatRegistry.indexUnique`, which is `private[file]` for exactly that reason,
 since ServiceLoader input can't be staged on the test classpath). **Long**
