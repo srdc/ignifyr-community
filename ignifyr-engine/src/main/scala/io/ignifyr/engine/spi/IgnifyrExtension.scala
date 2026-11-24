@@ -61,6 +61,9 @@ trait IgnifyrExtension {
   /** Source schema inferrers this module contributes, keyed at registration by their settings class. */
   def schemaInferrers: Seq[SourceSchemaInferrer] = Nil
 
+  /** Source discoverers this module contributes (tables, columns and keys of a source), keyed by their settings class. */
+  def sourceDiscoverers: Seq[SourceDiscoverer] = Nil
+
   /** Streaming execution capability, if this module provides one. At most one may be installed. */
   def streamingProvider: Option[StreamingExecutionProvider] = None
 

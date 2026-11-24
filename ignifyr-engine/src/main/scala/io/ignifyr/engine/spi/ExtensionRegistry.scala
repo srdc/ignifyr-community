@@ -90,6 +90,11 @@ object ExtensionRegistry {
       extensions.flatMap(e => e.schemaInferrers.map(p => (e.id, p.settingsClass: Class[_], p)))
     )
 
+  lazy val sourceDiscoverers: Map[Class[_], SourceDiscoverer] =
+    indexUnique("source discoverer")(
+      extensions.flatMap(e => e.sourceDiscoverers.map(p => (e.id, p.settingsClass: Class[_], p)))
+    )
+
   /** All installed lookup observers, in extension order. Several may coexist. */
   lazy val lookupObservers: Seq[MappingLookupObserver] =
     extensions.flatMap(_.lookupObservers)
@@ -201,6 +206,7 @@ object ExtensionRegistry {
     identityServiceProviders
     cliCommands
     schemaInferrers
+    sourceDiscoverers
     jobModelClasses
     io.ignifyr.engine.util.FhirMappingJobFormatter.formats
     streaming

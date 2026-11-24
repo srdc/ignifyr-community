@@ -37,7 +37,7 @@ code changes.**
 Every plugin module plugs in through the `IgnifyrExtension` ServiceLoader SPI
 (`io.ignifyr.engine.spi`) — one implementation and one `META-INF/services` entry per jar. Its full
 contribution surface is `sourceConnectors`, `sinkProviders`, `terminologyServiceProviders`,
-`identityServiceProviders`, `cliCommands`, `sourceFailureDescriptors`, `schemaInferrers`,
+`identityServiceProviders`, `cliCommands`, `sourceFailureDescriptors`, `schemaInferrers`, `sourceDiscoverers`,
 `streamingProvider`, `schedulerProvider`, `lookupObservers`, `sparkConfContributions`, `extraCapabilities`, plus
 `initialize(config)` (scoped to `ignifyr.extensions.<id>`; it must **not** touch
 `IgnifyrConfig.sparkSession` — registry load runs while the session is being built). The engine's

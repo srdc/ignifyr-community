@@ -5,7 +5,7 @@ import io.ignifyr.engine.spi.{ExtensionRegistry, IgnifyrExtension}
 /**
  * Lists the installed Ignifyr extension modules discovered through ServiceLoader and everything each
  * one contributes to the engine — source connectors, sinks, terminology/identity services, CLI
- * commands, schema inferrers, streaming/scheduling capabilities and Spark-conf entries — plus any
+ * commands, schema inferrers, source discoverers, streaming/scheduling capabilities and Spark-conf entries — plus any
  * extra capabilities a module surfaces for itself (e.g. the file connector's discovered file
  * formats, via [[IgnifyrExtension.extraCapabilities]]).
  *
@@ -45,6 +45,7 @@ class ListPlugins extends Command {
       line("terminology services", ext.terminologyServiceProviders)(_.settingsClass.getSimpleName),
       line("identity services", ext.identityServiceProviders)(_.settingsClass.getSimpleName),
       line("schema inferrers", ext.schemaInferrers)(_.settingsClass.getSimpleName),
+      line("source discoverers", ext.sourceDiscoverers)(_.settingsClass.getSimpleName),
       line("CLI commands", ext.cliCommands.flatMap(c => c.name +: c.aliases).sorted)(identity),
       line("source failure descriptors", ext.sourceFailureDescriptors)(_.getClass.getSimpleName),
       line("lookup observers", ext.lookupObservers)(_.getClass.getSimpleName),

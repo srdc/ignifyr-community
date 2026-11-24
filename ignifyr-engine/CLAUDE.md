@@ -37,10 +37,11 @@ resources. Usable as a library or as the standalone CLI/batch tool. Package root
   separator and `spark.sql.catalog.spark_catalog` is a scalar, so both are deliberately excluded.
 - `spi/` — the ServiceLoader extension SPI: `IgnifyrExtension` (one per module; contributes source
   connectors, sinks, terminology/identity services, CLI commands, source-failure descriptors, schema
-  inferrers, streaming/scheduling capabilities, `sparkConfContributions`, `extraCapabilities`, and its own
+  inferrers, source discoverers, streaming/scheduling capabilities, `sparkConfContributions`, `extraCapabilities`, and its own
   job-model classes and json4s serializers — `jobModelClasses`/`jobSerializers`, see `util/` below),
   `ExtensionRegistry`, the provider traits — `SourceConnector`, `SinkProvider`, `CliCommandProvider`,
-  `SourceSchemaInferrer`, `SourceFailureDescriptor`, `StreamingExecutionProvider`, `SchedulerProvider`,
+  `SourceSchemaInferrer`, `SourceDiscoverer` (tables, columns and keys of a source from its own catalogue, never
+  its rows; `connector-sql` implements it with JDBC `DatabaseMetaData`), `SourceFailureDescriptor`, `StreamingExecutionProvider`, `SchedulerProvider`,
   `MappingTaskPipeline`, and `TerminologyServiceProvider`/`IdentityServiceProvider` (both in
   `IntegratedServiceProviders.scala`) — plus `ExtensionHints` (error-message module coordinates) and
   `core/CoreExtension`. **`CoreExtension` registers only the built-in CLI commands and the

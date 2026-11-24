@@ -42,7 +42,8 @@
                             <wildcardSuites>io.ignifyr.connector.sql</wildcardSuites>
                         </configuration>
                     </execution>
-                    <!-- Integration phase: the full-pipeline SqlSourceTest (H2 + onFHIR container). -->
+                    <!-- Integration phase: the full-pipeline SqlSourceTest (H2 + onFHIR container) and
+                         SqlSourceDiscoveryTest (PostgreSQL container). -->
                     <execution>
                         <id>integration-test</id>
                         <phase>integration-test</phase>
@@ -91,6 +92,12 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- SqlSourceDiscoveryTest (integration tier) discovers a real PostgreSQL in a container. -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- The integration test writes its mapped resources to the onFHIR container, so the
              FHIR-repository sink module must be on the test classpath. -->
         <dependency>

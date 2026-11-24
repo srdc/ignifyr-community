@@ -2,12 +2,13 @@ package io.ignifyr.connector.sql
 
 import io.ignifyr.engine.data.read.BaseDataSourceReader
 import io.ignifyr.engine.model.{SqlSource, SqlSourceSettings}
-import io.ignifyr.engine.spi.{IgnifyrExtension, SourceConnector, SourceSchemaInferrer}
+import io.ignifyr.engine.spi.{IgnifyrExtension, SourceConnector, SourceDiscoverer, SourceSchemaInferrer}
 import org.apache.spark.sql.SparkSession
 
 /**
  * Registers the SQL/JDBC source connector with the engine via ServiceLoader, plus a
- * [[SourceSchemaInferrer]] that reads the schema from JDBC metadata without pulling any data.
+ * [[SourceSchemaInferrer]] that reads the schema from JDBC metadata without pulling any data, and a
+ * [[SourceDiscoverer]] that lists the tables, columns and keys of a database from its catalogue.
  */
 class SqlConnectorExtension extends IgnifyrExtension {
 
@@ -24,4 +25,6 @@ class SqlConnectorExtension extends IgnifyrExtension {
   )
 
   override def schemaInferrers: Seq[SourceSchemaInferrer] = Seq(new SqlSchemaInferrer)
+
+  override def sourceDiscoverers: Seq[SourceDiscoverer] = Seq(new SqlSourceDiscoverer)
 }

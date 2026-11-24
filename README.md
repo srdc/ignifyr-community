@@ -216,7 +216,7 @@ Once the interactive CLI is up, the following commands are available:
 - `reload`: Reload the mapping definitions from their source into the mapping repository.
 - `run [<url>|<name>]`: Run the task(s). Without a parameter, all task of the loaded Mapping Job are run. A specific task can be indicated with its name or URL. (Alias: `execute`.)
 - `list`: Show jobs with at least one running mapping.
-- `list-plugins`: Show the installed extension modules and everything they contribute — connectors, sinks, file formats, terminology/identity services, CLI commands, schema inferrers, and the streaming/scheduling capabilities. The quickest way to tell which edition/plugins a given jar carries.
+- `list-plugins`: Show the installed extension modules and everything they contribute — connectors, sinks, file formats, terminology/identity services, CLI commands, schema inferrers, source discoverers, and the streaming/scheduling capabilities. The quickest way to tell which edition/plugins a given jar carries.
 - `stop`: Stop the execution of the Mapping Job (if any) or a specific Mapping Task associated with a job.
 - `exit`: Exit the program. (Alias: `quit`.)
 
