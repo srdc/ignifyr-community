@@ -89,7 +89,7 @@ else plugs into). Where a module exists mainly for structural regularity, the ta
 | Module | Edition | What it does | Why it is a module |
 |---|---|---|---|
 | `ignifyr-engine` | Community | The engine: reads with Spark, applies the mapping templates, routes results to a sink. Owns the job/mapping models and the community source/sink settings models (a plugin module defines its own, see `IgnifyrExtension.jobModelClasses`), the batch runtime, the CLI, and the `IgnifyrExtension` SPI. | It is the host, not a plugin — the one artifact every other module compiles against. Because the plugins depend on it, it cannot itself be the fat jar (that would be a cycle), which is why the assembly lives downstream in `ignifyr-cli`. Two gates keep it honest: the enforcer, which bans the enterprise libraries from its dependency tree, and its own test suite, which asserts that the engine's built-in extension contributes nothing but CLI commands and a local terminology service. |
-| `ignifyr-common` | Community | Spark-free helpers below the engine: the app-version reader, onFHIR `SchemaDefinition` → `StructureDefinition` conversion, exception-chain flattening, and the `cst:` FHIRPath function library. | The only layer usable without Spark or the engine on the classpath, and the point where the `onfhir-common` / `onfhir-definition-commons` dependencies enter the build. Honestly a thin, largely historical split: nothing today would break if it folded into the engine. |
+| `ignifyr-common` | Community | Spark-free helpers below the engine: the app-version reader, `onfhir-definition-commons` `SchemaDefinition` → `StructureDefinition` conversion, exception-chain flattening, and the `cst:` FHIRPath function library. | The only layer usable without Spark or the engine on the classpath, and the point where the `onfhir-common` / `onfhir-definition-commons` dependencies enter the build. Honestly a thin, largely historical split: nothing today would break if it folded into the engine. |
 
 #### Source connectors — `ignifyr-connector-*` reads data **in**
 
@@ -659,7 +659,7 @@ The json snippet above illustrates the structure of an example mapping job. Let'
 - `sourceSettings` defines the source settings of the mapping job. The source settings config is used to connect to the source data.
   In this case, the source type of data is file system source and `dataFolderPath` defines the path of the source data folder.
   Please note that, `dataFolderPath` is a relative path to the root folder of the definitions. Also, it may be an absolute path as well.
-- Assuming onFHIR is running on the system, `sinkSettings` defines FHIR endpoint configurations to connect to the data destination.
+- Assuming a FHIR server such as [Repofyr](https://github.com/srdc/repofyr) (formerly onFHIR) is running on the system, `sinkSettings` defines FHIR endpoint configurations to connect to the data destination.
 - `dataProcessingSettings` is used to define post-processes after the mapping is completed. It is explained in detail here: [Data Processing Settings](#Archiving)
 - `mappings` is a list of mapping tasks that mapping job includes. For a purpose of illustration, the mapping job above includes two mappings:
   - https://aiccelerate.eu/fhir/mappings/project1/patient-mapping

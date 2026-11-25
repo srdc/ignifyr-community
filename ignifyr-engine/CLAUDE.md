@@ -124,7 +124,7 @@ resources. Usable as a library or as the standalone CLI/batch tool. Package root
   `RunningJobRegistryTest` asserts that the future `registerBatchJob` returns completes **only after**
   input archiving has run (no sleep in the assertion — awaiting that future *is* the guarantee the
   one-shot CLI relies on before `System.exit(0)`), and `SchemaConverterTest` deliberately covers only the
-  Spark→FHIR direction: `convertSchema` needs onFHIR's base FHIR config initialized, so it is exercised by
+  Spark→FHIR direction: `convertSchema` needs the base FHIR config of onfhir-libs (`BaseFhirConfig`) initialized, so it is exercised by
   the server's long-tier `SchemaEndpointTest` instead.
 - The engine has **no long-tier suites of its own** — there is no `io.ignifyr.integrationtest` source
   folder here (the pom's `integration-test` execution simply finds nothing). The suites that exercise the

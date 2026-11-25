@@ -20,12 +20,12 @@ than load-bearing. Changes are still API changes to both editions; keep them bac
   **`ignifyr-engine`** and the enterprise **`ignifyr-server`** resources (`<filtering>true</filtering>`
   in those poms).
   On a classpath with neither, `getVersion` returns `"UNKNOWN"`.
-- `util/CustomMappingFunctions` — an onFHIR `AbstractFhirPathFunctionLibrary` exposing one `cst:`
+- `util/CustomMappingFunctions` — an `onfhir-path` (onfhir-libs) `AbstractFhirPathFunctionLibrary` exposing one `cst:`
   function, `createTimeSeriesData`, plus `CustomMappingFunctionsFactory` in the same file.
   ⚠️ No Scala code anywhere references the factory. It is wired by HOCON class name only —
   `ignifyr.functionLibraries.cst.className` — which is **active in the enterprise `ignifyr-server`'s application.conf
   and commented out in `ignifyr-engine`'s**, so `cst:` functions are off by default in the community CLI.
-- `util/SchemaUtil` — `convertToStructureDefinitionResource`: onFHIR `SchemaDefinition` →
+- `util/SchemaUtil` — `convertToStructureDefinitionResource`: `onfhir-definition-commons` `SchemaDefinition` →
   FHIR `StructureDefinition` as json4s JSON. Its main caller is enterprise server code.
 - `util/ExceptionUtil` — flattens a `Throwable` cause chain into one newline-joined message.
 
@@ -40,5 +40,5 @@ regression in `cst:createTimeSeriesData` would surface only in a server user's m
 base64-then-little-endian-shorts behaviour is odd enough that the suite documents the arithmetic rather
 than just asserting a golden value.
 
-`SchemaUtil` still has no direct coverage — it needs an initialized onFHIR base config, so it is
+`SchemaUtil` still has no direct coverage — it needs an initialized base FHIR config (`BaseFhirConfig`, onfhir-libs), so it is
 exercised through the server's long-tier `SchemaEndpointTest` instead.

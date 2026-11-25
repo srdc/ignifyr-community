@@ -14,7 +14,7 @@ Read those first. The essentials:
    (`srdc/ignifyr-web`, `ignifyr-redcap-service`); the legacy `tofhir` name remains only in the
    README's SwaggerHub link and "formerly" pointers — don't reintroduce it in new code.
 2. **Verify with Maven.** `mvn test` for unit tests (fast, no Docker); `mvn -B verify -DskipITs=false` for
-   the full build incl. integration tests — which **need Docker running** (MongoDB/onFHIR via TestContainers).
+   the full build incl. integration tests — which **need Docker running** (MongoDB and a Repofyr, formerly onFHIR, FHIR server via TestContainers).
    Report test results before claiming a change works.
 3. **Commit format (SRDC semantic commits):** `<emoji> <type>(<scope>): <subject>` — `:sparkles:` feat,
    `:bug:` fix, `:memo:` docs, `:recycle:` refactor, `:construction_worker:` build, `:white_check_mark:`

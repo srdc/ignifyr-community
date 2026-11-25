@@ -56,7 +56,7 @@ Tier-split (surefire disabled). **Short** (`wildcardSuites=io.ignifyr.connector.
 `extraCapabilities`, the missing-format install-hint UX, **and** the duplicate-content-type guard — the
 latter asserted on `FileFormatRegistry.indexUnique`, which is `private[file]` for exactly that reason,
 since ServiceLoader input can't be staged on the test classpath). **Long**
-(`membersOnlySuites=io.ignifyr.integrationtest`, gated on `${skipITs}`, Docker/onFHIR):
+(`membersOnlySuites=io.ignifyr.integrationtest`, gated on `${skipITs}`, Docker/Repofyr):
 `FhirMappingJobManagerTest` — writes through the FHIR sink, so `ignifyr-sink-fhir` is a test-scope dep.
 Run it with `mvn -B verify -pl ignifyr-connector-file -DskipITs=false`. The shared harness + fixtures come
 from `ignifyr-testkit` (test scope).

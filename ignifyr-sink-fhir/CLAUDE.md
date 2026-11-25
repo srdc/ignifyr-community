@@ -19,7 +19,7 @@ the flagship FHIR writer droppable: a file-only or OMOP-only deployment can simp
 entry) is the only extension in the repo registering three different hooks, **all keyed on the same
 class, `FhirRepositorySinkSettings`**:
 - `sinkProviders` → `FhirRepositoryWriter` (provider id `"fhir-repository"`).
-- `terminologyServiceProviders` → onFHIR's `TerminologyServiceClient`.
+- `terminologyServiceProviders` → `onfhir-client`'s `TerminologyServiceClient` (onfhir-libs).
 - `identityServiceProviders` → `IdentityServiceClient`.
 
 Consequence worth remembering: **this module is the sole provider of *any* identity service**, and of the
@@ -34,12 +34,12 @@ It owns no sub-SPI (unlike `ignifyr-sink-file`) and overrides no `initialize`, `
 Read these before touching the write path; each exists because of a specific server's behaviour.
 - **Batch size comes from engine config, not sink settings** —
   `IgnifyrConfig.engineConfig.fhirWriterBatchGroupSize` grouped over the partition.
-- **Firely returns HTTP 400 for a batch where *any* entry fails** (onFHIR does not), which surfaces as a
+- **Firely returns HTTP 400 for a batch where *any* entry fails** (Repofyr, formerly onFHIR, does not), which surfaces as a
   `FhirClientException`. That path is caught and re-derived into per-entry problems via
   `groupOutcomeIssuesByEntryIndex`, using the `OutcomeIssue` *expression* to locate the offending entry —
   if Firely omits the expression, the issue cannot be attributed and is logged as such.
 - **Responses are matched to inputs positionally**, not by the `urn:uuid:` the request assigns. The
-  UUID-matching approach worked with onFHIR but HAPI FHIR does not echo the UUID back. The request UUIDs
+  UUID-matching approach worked with Repofyr (then onFHIR) but HAPI FHIR does not echo the UUID back. The request UUIDs
   are still generated (they are needed for intra-bundle references); just don't reintroduce a lookup by
   them.
 - **409 Conflict is treated as transient and retried up to 4 attempts** (`checkResults` →

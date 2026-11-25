@@ -22,7 +22,8 @@ change here is a change to the enterprise suites too — they pick it up at the 
 - `src/main/resources/` — fixtures mounted at fixed classpath roots: `/test-mappings` (+ context CSVs;
   nested `some-folder-*` exercise multi-folder discovery), `/test-schemas`, `/terminology-service`
   (code-system + concept-map CSVs), `/test-data` (`loop.json`).
-  ⚠️ **The mapping fixtures must emit R5**, because `OnFhirTestContainer` runs `srdc/onfhir:r5`. That
+  ⚠️ **The mapping fixtures must emit R5**, because `OnFhirTestContainer` runs `srdc/onfhir:r5` (Repofyr's image from
+  before its rename). That
   migration was only finished on 2026-08-10 (`e93e6546`): two fixtures still produced R4 shapes
   (`MedicationAdministration.effectiveDateTime`/`.context`/`.medicationCodeableConcept`,
   `Procedure.performedDateTime`, `Organization.address`), so the server rejected them and one mapping
@@ -52,7 +53,7 @@ change here is a change to the enterprise suites too — they pick it up at the 
   module's own `LocalTerminologyServiceTest` gets away with the discouraged form; don't copy it.)
 - `copyResourceFile(path)` — stages a single fixture file (e.g. a CSV under a context path) for suites
   that need a real file on disk.
-- `OnFhirTestContainer` — lazy Testcontainers stack (`mongo:7.0` + `srdc/onfhir:r5` on a shared
+- `OnFhirTestContainer` — lazy Testcontainers stack (`mongo:7.0` + the Repofyr server, as its pre-rename image `srdc/onfhir:r5`, on a shared
   network, `withReuse(true)`); `getOnFhirClient` returns an `OnFhirNetworkClient`. For **consumer**
   integration suites; the testkit's own suites need no Docker.
 - `FhirMappingResultFixtures.sampleFhirMappingResults(spark)` — a fixed 10-Patient/5-Condition dataset

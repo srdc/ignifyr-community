@@ -85,7 +85,7 @@ Artifact naming: everything is `ignifyr-*_2.13` **except** `ignifyr-common` (and
 | Module | Purpose |
 |---|---|
 | [`ignifyr-engine`](ignifyr-engine/CLAUDE.md) | Core mapping/transformation engine, CLI/batch entrypoint, and the extension SPI |
-| [`ignifyr-common`](ignifyr-common/CLAUDE.md) | Spark-free helper layer: version reader, onFHIR schema→StructureDefinition conversion, exception flattening, the `cst:` FHIRPath library. No model classes |
+| [`ignifyr-common`](ignifyr-common/CLAUDE.md) | Spark-free helper layer: version reader, `onfhir-definition-commons` schema→StructureDefinition conversion, exception flattening, the `cst:` FHIRPath library. No model classes |
 | `ignifyr-connector-sql` | SQL/JDBC source connector (ships the PostgreSQL driver) + the JDBC-metadata schema inferrer |
 | [`ignifyr-connector-file`](ignifyr-connector-file/CLAUDE.md) | File-system source; owns a pluggable source-format sub-SPI (`FileSourceFormat`, its own `FileFormatRegistry`/ServiceLoader) shipping csv/tsv/parquet |
 | [`ignifyr-sink-fhir`](ignifyr-sink-fhir/CLAUDE.md) | FHIR-repository sink writer (the flagship output) + the FHIR-server-backed terminology/identity service providers |
@@ -129,7 +129,8 @@ re-deriving the commands, and keep it as the single source of truth if you chang
   Every module pins its own `wildcardSuites` (the engine's is `io.ignifyr.test`, a plugin module's is its
   own package, e.g. `io.ignifyr.sink.file`).
 - `mvn -B verify -DskipITs=false` — short **plus** the **long (integration)** tier.
-  ⚠️ Requires **Docker running** (TestContainers: MongoDB, onFHIR r5).
+  ⚠️ Requires **Docker running** (TestContainers: MongoDB, and an R5 FHIR server: `srdc/onfhir:r5`, the
+  image of Repofyr from before its rename).
 - ⚠️ **The long tier is opt-in.** The root pom sets `<skipITs>true</skipITs>` and every
   `integration-test` execution is gated on it, so plain `mvn test`/`package`/`install`/**`verify`** all
   stay short and container-free. `-DskipITs=false` is the only switch. Modules owning long-tier suites
@@ -162,7 +163,8 @@ re-deriving the commands, and keep it as the single source of truth if you chang
 - The shared harness lives in **`ignifyr-testkit`**, in `src/main` (not a test-jar):
   [`IgnifyrTestSpec`](ignifyr-testkit/src/main/scala/io/ignifyr/IgnifyrTestSpec.scala) provides a
   `SparkSession`, mapping/schema repositories, a context loader, and a `RunningJobRegistry`;
-  `OnFhirTestContainer` provides the onFHIR + MongoDB containers; fixtures live on its classpath.
+  `OnFhirTestContainer` provides the FHIR server (Repofyr, still its pre-rename `srdc/onfhir:r5` image) and
+  MongoDB containers; fixtures live on its classpath.
   Depend on it at **test** scope — that one dependency also brings scalatest/mockito/H2/Testcontainers,
   which the testkit declares at compile scope on purpose.
   - A consumer of `IgnifyrTestSpec` **must** set `ignifyr.mappings.repository.folder-path` and
@@ -176,7 +178,7 @@ re-deriving the commands, and keep it as the single source of truth if you chang
     `Paths.get(getClass.getResource(...).toURI)` — the reactor serves testkit fixtures from the jar.
 - The enterprise server's endpoint suites (`BaseEndpointTest`) live in the enterprise repository and consume
   this testkit from SRDC Nexus — a fixture change here reaches them at the next snapshot deploy.
-- **A suite that writes to the onFHIR container must read the resources back.** Asserting that the
+- **A suite that writes to the FHIR server (Repofyr) container must read the resources back.** Asserting that the
   teardown `delete` answered 200 proves nothing: it answers 200 whether or not anything was ever written,
   which is how two R4-shaped fixtures went unnoticed against the r5 container until 2026-08-07.
 - **A suite's tier is decided by its package, and that is enforced, not conventional:**
@@ -241,7 +243,8 @@ Format: `<emoji> <type>(<scope>): <subject>. <issue-ref>`
 
 - Primary development is on **Windows / PowerShell**; all Maven commands above are cross-platform.
 - **Docker Desktop** must be running for `mvn -B verify` / integration tests.
-- Upstream dependencies are all releases: onfhir-libs 4.0.0 from **Maven Central**;
+- Upstream dependencies are all releases: onfhir-libs 4.0.1 (the `io.onfhir` libraries, also the base of
+  Repofyr, formerly onFHIR) from **Maven Central**;
   onfhir-definition-microservices 2.0.0 and spark-on-fhir 2.0.0 (`io.onfhir.spark`, a reactor since
   2.0.0 — Ignifyr consumes `spark-on-fhir-connector-api`) from **SRDC Nexus releases**, the one
   `<repository>` in [pom.xml](pom.xml). No snapshot repository is declared; Ignifyr's own
