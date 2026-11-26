@@ -4,7 +4,7 @@ import com.typesafe.scalalogging.Logger
 import io.ignifyr.engine.data.read.BaseDataSourceReader
 import io.ignifyr.engine.model.exception.FhirMappingException
 import io.ignifyr.engine.model.{SqlSource, SqlSourceSettings}
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{StringType, StructType, TimestampType}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
 import java.time.LocalDateTime
@@ -67,12 +67,26 @@ class SqlSourceReader(spark: SparkSession) extends BaseDataSourceReader[SqlSourc
     // Apply schema via customSchema if provided
     val readerWithSchema = schema match {
       case Some(s) =>
-        reader.option("customSchema", toCustomSchema(s))
+        // Source dateTime fields are represented as strings by SchemaConverter. Reading a native
+        // JDBC timestamp as STRING delegates formatting to the driver (DB2 appends ".0"). Keep
+        // those fields as timestamps so the existing Row-to-JSON conversion retains its format.
+        // load().schema resolves JDBC metadata; it does not collect source records.
+        val jdbcSchema =
+          if (s.fields.exists(_.dataType == StringType)) reader.option("customSchema", "").load().schema
+          else StructType(Nil)
+        reader.option(
+          "customSchema",
+          SqlSourceReader.toCustomSchema(s, jdbcSchema, spark.conf.get("spark.sql.caseSensitive", "false").toBoolean)
+        )
       case None =>
         reader
     }
     readerWithSchema.load()
   }
+
+}
+
+object SqlSourceReader {
 
   /**
    * Converts a Spark {@link StructType} schema into a JDBC-compatible
@@ -104,11 +118,21 @@ class SqlSourceReader(spark: SparkSession) extends BaseDataSourceReader[SqlSourc
    *
    * @param schema the Spark {@link StructType} defining the expected column names
    *               and data types
-   * @return a string suitable for Spark JDBC reads
+   * @param jdbcSchema native JDBC column types, before applying the source schema
+   * @param caseSensitive whether column names are resolved case-sensitively
+   * @return a string suitable for Spark JDBC reads, preserving native timestamps requested as text
    */
-  private def toCustomSchema(schema: StructType): String =
+  private[sql] def toCustomSchema(schema: StructType, jdbcSchema: StructType, caseSensitive: Boolean): String =
     schema.fields
-      .map(f => s"${f.name} ${f.dataType.sql}")
+      .map { f =>
+        val nativeField = jdbcSchema.fields.find(native =>
+          if (caseSensitive) native.name == f.name else native.name.equalsIgnoreCase(f.name)
+        )
+        val readType =
+          if (f.dataType == StringType && nativeField.exists(_.dataType == TimestampType)) TimestampType
+          else f.dataType
+        s"${f.name} ${readType.sql}"
+      }
       .mkString(", ")
 
 }
